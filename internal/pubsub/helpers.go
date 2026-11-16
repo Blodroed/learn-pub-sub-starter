@@ -48,7 +48,8 @@ func DeclareAndBind(
 		durable = true
 	}
 
-	queue, err := ch.QueueDeclare(queueName, durable, !durable, !durable, false, nil)
+	table := amqp.Table{"x-dead-letter-exchange": "peril_dlx"}
+	queue, err := ch.QueueDeclare(queueName, durable, !durable, !durable, false, table)
 	if err != nil {
 		return nil, amqp.Queue{}, err
 	}
