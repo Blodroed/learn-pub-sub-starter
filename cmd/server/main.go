@@ -1,15 +1,14 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
+	"github.com/bootdotdev/learn-pub-sub-starter/cmd"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
@@ -38,46 +37,15 @@ func main() {
 	defer stop()
 
 	gamelogic.PrintServerHelp()
-	inputs := make(chan []string)
-	// this goroutine reads user input from stdin and sends it to the inputs channel
-	go func() {
-		defer close(inputs)
-		scanner := bufio.NewScanner(os.Stdin)
-		for {
-			if !scanner.Scan() {
-				if err := scanner.Err(); err != nil {
-					log.Printf("error reading input: %s", err)
-				}
-				return
-			}
-			select {
-			case inputs <- strings.Fields(strings.TrimSpace(scanner.Text())):
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
+	inputs := cmd.ReadInput(ctx)
 
 	for {
 		fmt.Print("> ")
 		var input []string
 
-		// Shutdown handling
-		select {
-		case <-ctx.Done():
-			fmt.Println()
-			log.Println("Shutdown signal received, shutting down...")
+		input, ok := cmd.WaitForInput(ctx, inputs)
+		if !ok {
 			return
-		case nextInput, ok := <-inputs:
-			if !ok {
-				return
-			}
-			if ctx.Err() != nil {
-				fmt.Println()
-				log.Println("Shutdown signal received, shutting down...")
-				return
-			}
-			input = nextInput
 		}
 
 		if len(input) == 0 {
