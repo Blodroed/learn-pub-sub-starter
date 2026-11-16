@@ -3,6 +3,7 @@ package pubsub
 import (
 	"context"
 	"encoding/json/v2"
+	"log"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -56,4 +57,44 @@ func DeclareAndBind(
 		return nil, amqp.Queue{}, err
 	}
 	return ch, queue, nil
+}
+
+// SubscribeJSON subscribes to a queue and processes incoming JSON messages using the provided handler function.
+// The handler function will be in a go routine, and update the game state or perform other actions as needed.
+func SubscribeJSON[T any](
+	conn *amqp.Connection,
+	exchange,
+	queueName,
+	key string,
+	queueType SimpleQueueType, // an enum to represent "durable" or "transient"
+	handler func(T),
+) error {
+	ch, queue, err := DeclareAndBind(conn, exchange, queueName, key, queueType)
+	if err != nil {
+		return err
+	}
+
+	deliveryChan, err := ch.Consume(queue.Name, "", false, false, false, false, nil)
+	if err != nil {
+		log.Println("Failed to start consuming messages:", err)
+		ch.Close()
+		return err
+	}
+
+	go func() {
+		defer ch.Close()
+
+		for d := range deliveryChan {
+			var msg T
+			if err := json.Unmarshal(d.Body, &msg); err != nil {
+				// handle the error, e.g., log it and nack the message
+				log.Println("Failed to unmarshal message:", err)
+				continue
+			}
+			handler(msg)
+			d.Ack(false)
+		}
+	}()
+
+	return nil
 }

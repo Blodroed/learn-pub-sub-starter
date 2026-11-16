@@ -31,18 +31,14 @@ func main() {
 		return
 	}
 
-	// Channel for recieving messages specific to this client
-	_, _, err = pubsub.DeclareAndBind(
-		conn, routing.ExchangePerilDirect,
-		routing.PauseKey+"."+username, routing.PauseKey,
-		pubsub.Transient,
-	)
-	if err != nil {
-		fmt.Printf("error declaring and binding queue: %s", err)
+	gamestate := gamelogic.NewGameState(username)
+	if err := pubsub.SubscribeJSON(conn, routing.ExchangePerilDirect,
+		"pause."+username, routing.PauseKey,
+		pubsub.Transient, handlerPause(gamestate),
+	); err != nil {
+		fmt.Printf("error subscribing to pause messages: %s\n", err)
 		return
 	}
-
-	gamestate := gamelogic.NewGameState(username)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -60,7 +56,7 @@ func main() {
 		// Process the input command
 		switch input[0] {
 		case "spawn":
-			if err := gamestate.CommandSpawn(input[1:]); err != nil {
+			if err := gamestate.CommandSpawn(input); err != nil {
 				fmt.Printf("error executing spawn command: %s\n", err)
 			}
 		case "move":
@@ -68,9 +64,10 @@ func main() {
 				fmt.Println("The move command requires 2 arguments: <destination> <unit id>")
 				continue
 			}
-			armyMove, err := gamestate.CommandMove(input[1:])
+			armyMove, err := gamestate.CommandMove(input)
 			if err != nil {
 				fmt.Printf("error executing move command: %s\n", err)
+				continue
 			}
 			fmt.Printf("Moved successfully: %+v\n", armyMove)
 			continue
