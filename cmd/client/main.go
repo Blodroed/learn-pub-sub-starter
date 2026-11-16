@@ -25,6 +25,13 @@ func main() {
 	defer conn.Close()
 	fmt.Println("Amqp connection successful")
 
+	channel, err := conn.Channel()
+	if err != nil {
+		fmt.Printf("error creating channel: %s", err)
+		return
+	}
+	defer channel.Close()
+
 	username, err := gamelogic.ClientWelcome()
 	if err != nil {
 		fmt.Printf("error during client welcome: %s", err)
@@ -32,11 +39,22 @@ func main() {
 	}
 
 	gamestate := gamelogic.NewGameState(username)
+
+	// Subscribe to pause messages from the server
 	if err := pubsub.SubscribeJSON(conn, routing.ExchangePerilDirect,
 		"pause."+username, routing.PauseKey,
 		pubsub.Transient, handlerPause(gamestate),
 	); err != nil {
 		fmt.Printf("error subscribing to pause messages: %s\n", err)
+		return
+	}
+
+	// Subsrcribe to the army_moves.* messages
+	if err := pubsub.SubscribeJSON(conn, routing.ExchangePerilTopic,
+		routing.ArmyMovesPrefix+"."+username, routing.ArmyMovesPrefix+".*",
+		pubsub.Transient, handlerMove(gamestate),
+	); err != nil {
+		fmt.Printf("error subscribing to army move messages: %s\n", err)
 		return
 	}
 
@@ -60,8 +78,8 @@ func main() {
 				fmt.Printf("error executing spawn command: %s\n", err)
 			}
 		case "move":
-			if len(input[1:]) > 2 || len(input[1:]) < 2 {
-				fmt.Println("The move command requires 2 arguments: <destination> <unit id>")
+			if len(input[1:]) < 2 {
+				fmt.Println("The move command requires at least 2 arguments: <destination> <unit id>")
 				continue
 			}
 			armyMove, err := gamestate.CommandMove(input)
@@ -69,7 +87,15 @@ func main() {
 				fmt.Printf("error executing move command: %s\n", err)
 				continue
 			}
-			fmt.Printf("Moved successfully: %+v\n", armyMove)
+
+			if err := pubsub.PublishJSON(channel, routing.ExchangePerilTopic,
+				routing.ArmyMovesPrefix+"."+username, armyMove,
+			); err != nil {
+				fmt.Printf("error publishing army move: %s\n", err)
+				continue
+			}
+
+			fmt.Printf("Moved successfully to %s\n", armyMove.ToLocation)
 			continue
 		case "status":
 			gamestate.CommandStatus()
