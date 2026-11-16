@@ -33,6 +33,16 @@ func main() {
 	}
 	defer channel.Close()
 
+	// Topic channel
+	_, _, err = pubsub.DeclareAndBind(
+		conn, routing.ExchangePerilTopic, routing.GameLogSlug,
+		routing.GameLogSlug+".*", pubsub.Durable,
+	)
+	if err != nil {
+		fmt.Printf("error declaring and binding topic queue: %s", err)
+		return
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
