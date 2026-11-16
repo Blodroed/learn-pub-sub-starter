@@ -59,6 +59,14 @@ func DeclareAndBind(
 	return ch, queue, nil
 }
 
+type Acktype int
+
+const (
+	Ack Acktype = iota
+	NackRequeue
+	NackDiscard
+)
+
 // SubscribeJSON subscribes to a queue and processes incoming JSON messages using the provided handler function.
 // The handler function will be in a go routine, and update the game state or perform other actions as needed.
 func SubscribeJSON[T any](
@@ -67,7 +75,7 @@ func SubscribeJSON[T any](
 	queueName,
 	key string,
 	queueType SimpleQueueType, // an enum to represent "durable" or "transient"
-	handler func(T),
+	handler func(T) Acktype,
 ) error {
 	ch, queue, err := DeclareAndBind(conn, exchange, queueName, key, queueType)
 	if err != nil {
@@ -91,8 +99,14 @@ func SubscribeJSON[T any](
 				log.Println("Failed to unmarshal message:", err)
 				continue
 			}
-			handler(msg)
-			d.Ack(false)
+			switch handler(msg) {
+			case Ack:
+				d.Ack(false)
+			case NackRequeue:
+				d.Nack(false, true)
+			case NackDiscard:
+				d.Nack(false, false)
+			}
 		}
 	}()
 
