@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"github.com/bootdotdev/learn-pub-sub-starter/cmd"
@@ -113,7 +114,22 @@ func main() {
 			gamelogic.PrintClientHelp()
 			continue
 		case "spam":
-			fmt.Println("Spamming not allowed yet!")
+			if len(input) != 2 {
+				fmt.Println("The spam command requires exactly 1 argument: <message>")
+				continue
+			}
+			n, err := strconv.Atoi(input[1])
+			if err != nil {
+				fmt.Printf("error parsing number: %s\n", err)
+				continue
+			}
+			for range n {
+				mLog := gamelogic.GetMaliciousLog()
+				if err := cmd.PublishGameLog(channel, username, mLog); err != nil {
+					fmt.Printf("error publishing malicious log: %s\n", err)
+					continue
+				}
+			}
 			continue
 		case "quit":
 			gamelogic.PrintQuit()
