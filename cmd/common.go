@@ -7,6 +7,11 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
+
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 func ReadInput(ctx context.Context) <-chan []string {
@@ -45,4 +50,18 @@ func WaitForInput(ctx context.Context, inputs <-chan []string) ([]string, bool) 
 		}
 		return input, true
 	}
+}
+
+func PublishGameLog(ch *amqp.Channel, username, log string) error {
+	var gl routing.GameLog
+	gl.Message = log
+	gl.Username = username
+	gl.CurrentTime = time.Now()
+
+	err := pubsub.PublishGob(ch, routing.ExchangePerilTopic, routing.GameLogSlug+"."+username, gl)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

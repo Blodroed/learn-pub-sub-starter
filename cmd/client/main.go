@@ -61,7 +61,7 @@ func main() {
 	// Subscribe to war messages from the server
 	if err := pubsub.SubscribeJSON(conn, routing.ExchangePerilTopic,
 		"war", routing.WarRecognitionsPrefix+".*",
-		pubsub.Durable, handlerConsumeWarMessage(gamestate),
+		pubsub.Durable, handlerConsumeWarMessage(channel, gamestate),
 	); err != nil {
 		fmt.Printf("error subscribing to war messages: %s\n", err)
 		return
