@@ -62,6 +62,12 @@ func main() {
 
 		input, ok := cmd.WaitForInput(ctx, inputs)
 		if !ok {
+			// stdin closed (e.g. started in the background by multiserver.sh):
+			// keep consuming game logs until a shutdown signal arrives.
+			if ctx.Err() == nil {
+				<-ctx.Done()
+				log.Println("Shutdown signal received, shutting down...")
+			}
 			return
 		}
 
