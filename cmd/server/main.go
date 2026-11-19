@@ -33,13 +33,20 @@ func main() {
 	}
 	defer channel.Close()
 
-	// Topic channel
-	_, _, err = pubsub.DeclareAndBind(
-		conn, routing.ExchangePerilTopic, routing.GameLogSlug,
+	// Logs
+	if err := pubsub.SubscribeGob(conn, routing.ExchangePerilTopic, routing.GameLogSlug,
 		routing.GameLogSlug+".*", pubsub.Durable,
-	)
-	if err != nil {
-		fmt.Printf("error declaring and binding topic queue: %s", err)
+		func(msg routing.GameLog) pubsub.Acktype {
+			defer fmt.Print("> ")
+			err := gamelogic.WriteLog(msg)
+			if err != nil {
+				log.Println("Failed to write game log:", err)
+				return pubsub.NackRequeue
+			}
+			return pubsub.Ack
+		},
+	); err != nil {
+		log.Printf("error subscribing to game log: %s", err)
 		return
 	}
 

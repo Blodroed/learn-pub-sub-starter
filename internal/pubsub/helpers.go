@@ -133,3 +133,48 @@ func PublishGob[T any](ch *amqp.Channel, exchange, key string, val T) error {
 	}
 	return nil
 }
+
+// SubscribeGob subscribes to a queue and processes incoming gob-encoded messages using the provided handler function.
+// The handler function will be in a go routine, and update the game state or perform other actions as needed.
+func SubscribeGob[T any](
+	conn *amqp.Connection,
+	exchange,
+	queueName,
+	key string,
+	queueType SimpleQueueType,
+	handler func(T) Acktype,
+) error {
+	ch, queue, err := DeclareAndBind(conn, exchange, queueName, key, queueType)
+	if err != nil {
+		return err
+	}
+
+	deliveryChan, err := ch.Consume(queue.Name, "", false, false, false, false, nil)
+	if err != nil {
+		log.Println("Failed to start consuming messages:", err)
+		ch.Close()
+		return err
+	}
+
+	go func() {
+		defer ch.Close()
+
+		for d := range deliveryChan {
+			var msg T
+			if err := gob.NewDecoder(bytes.NewReader(d.Body)).Decode(&msg); err != nil {
+				log.Println("Failed to decode message:", err)
+				continue
+			}
+			switch handler(msg) {
+			case Ack:
+				d.Ack(false)
+			case NackRequeue:
+				d.Nack(false, true)
+			case NackDiscard:
+				d.Nack(false, false)
+			}
+		}
+	}()
+
+	return nil
+}
