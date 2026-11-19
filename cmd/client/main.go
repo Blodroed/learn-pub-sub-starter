@@ -52,9 +52,18 @@ func main() {
 	// Subsrcribe to the army_moves.* messages
 	if err := pubsub.SubscribeJSON(conn, routing.ExchangePerilTopic,
 		routing.ArmyMovesPrefix+"."+username, routing.ArmyMovesPrefix+".*",
-		pubsub.Transient, handlerMove(gamestate),
+		pubsub.Transient, handlerMove(channel, gamestate),
 	); err != nil {
 		fmt.Printf("error subscribing to army move messages: %s\n", err)
+		return
+	}
+
+	// Subscribe to war messages from the server
+	if err := pubsub.SubscribeJSON(conn, routing.ExchangePerilTopic,
+		"war", routing.WarRecognitionsPrefix+".*",
+		pubsub.Durable, handlerConsumeWarMessage(gamestate),
+	); err != nil {
+		fmt.Printf("error subscribing to war messages: %s\n", err)
 		return
 	}
 
