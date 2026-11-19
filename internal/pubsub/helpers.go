@@ -85,6 +85,7 @@ func SubscribeJSON[T any](
 		return err
 	}
 
+	ch.Qos(10, 0, false)
 	deliveryChan, err := ch.Consume(queue.Name, "", false, false, false, false, nil)
 	if err != nil {
 		log.Println("Failed to start consuming messages:", err)
@@ -149,6 +150,7 @@ func SubscribeGob[T any](
 		return err
 	}
 
+	ch.Qos(10, 0, false)
 	deliveryChan, err := ch.Consume(queue.Name, "", false, false, false, false, nil)
 	if err != nil {
 		log.Println("Failed to start consuming messages:", err)
